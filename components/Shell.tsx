@@ -5,6 +5,7 @@ import { logout } from "@/app/actions/auth";
 import { get, type Role, type User } from "@/lib/db";
 import { Avatar } from "@/components/Avatar";
 import { I } from "@/components/Icons";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 type NavItem = { href: string; label: string; icon: keyof typeof I };
 
@@ -99,6 +100,7 @@ export async function Shell({ user, children, topbar }: { user: User; children: 
               <I.search />
               <input placeholder="Search…" aria-label="Search" />
             </div>
+            <ThemeToggle />
             <Link href={user.role === "student" ? "/student/results" : user.role === "teacher" ? "/teacher/submissions" : "/admin/submissions"} className="iconbtn" aria-label="Notifications">
               <I.bell />
               {unread > 0 && <span className="dot">{unread > 9 ? "9+" : unread}</span>}
