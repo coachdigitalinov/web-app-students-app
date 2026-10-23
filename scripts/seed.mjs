@@ -3,10 +3,11 @@ import Database from "better-sqlite3";
 import bcrypt from "bcryptjs";
 import fs from "node:fs";
 import path from "node:path";
+import { SCHEMA } from "../lib/schema.ts";
 
 fs.mkdirSync("data", { recursive: true });
 const db = new Database(path.join("data", "app.db"));
-db.exec(fs.readFileSync(path.join("lib", "schema.sql"), "utf8"));
+db.exec(SCHEMA);
 const add = db.prepare("INSERT OR IGNORE INTO users (name,email,password_hash,role,grade,school,referral_code,referred_by) VALUES (?,?,?,?,?,?,?,?)");
 const h = bcrypt.hashSync("demo12345", 10);
 add.run("Administrator", "admin@digitalinov.local", bcrypt.hashSync("ChangeMe123!", 10), "admin", null, null, null, null);

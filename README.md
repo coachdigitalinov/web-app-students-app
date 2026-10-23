@@ -43,3 +43,7 @@ Uploads are stored in `storage/` and served only through `/files/...` after a pe
 ## Not in V1
 
 Parent login, notifications (email/SMS/WhatsApp), bulk student upload, payment gateway, password self-reset (admin resets passwords via the `resetPassword` action – no UI yet), multi-school dashboards.
+
+## Deploying on Vercel
+
+Vercel functions have a read-only filesystem, so on Vercel the app stores its SQLite database and uploads in `/tmp`. This makes the app **run**, but `/tmp` is wiped on cold starts and is not shared between function instances, so **all data and uploads are temporary**. It is fine for a demo only. For real use, host it somewhere with a persistent disk (a VPS, Fly.io or Railway with a volume), or switch the database to Postgres and uploads to object storage (Vercel Postgres/Neon and Vercel Blob).

@@ -2,9 +2,12 @@ import Database from "better-sqlite3";
 import bcrypt from "bcryptjs";
 import fs from "node:fs";
 import path from "node:path";
+import { SCHEMA } from "./schema";
 
-export const DATA_DIR = path.join(process.cwd(), "data");
-export const STORAGE_DIR = path.join(process.cwd(), "storage");
+// Vercel functions have a read-only filesystem except /tmp, which is ephemeral (see README).
+const ROOT = process.env.VERCEL ? "/tmp" : process.cwd();
+export const DATA_DIR = path.join(ROOT, "data");
+export const STORAGE_DIR = path.join(ROOT, "storage");
 
 function open() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -13,7 +16,7 @@ function open() {
   db.pragma("busy_timeout = 5000");
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
-  db.exec(fs.readFileSync(path.join(process.cwd(), "lib", "schema.sql"), "utf8"));
+  db.exec(SCHEMA);
   db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('referral_fee', '500')").run();
 
   // Bootstrap the first admin so a fresh install can log in.

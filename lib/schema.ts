@@ -1,3 +1,5 @@
+// Schema is embedded (not read from disk) so it is bundled into serverless functions.
+export const SCHEMA = `
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS users (
@@ -104,3 +106,4 @@ CREATE INDEX IF NOT EXISTS idx_attempts_student ON attempts(student_id);
 CREATE INDEX IF NOT EXISTS idx_attempts_teacher ON attempts(assigned_teacher_id);
 CREATE INDEX IF NOT EXISTS idx_school_student ON school_tests(student_id);
 CREATE INDEX IF NOT EXISTS idx_payments_teacher ON payments(teacher_id);
+`;
