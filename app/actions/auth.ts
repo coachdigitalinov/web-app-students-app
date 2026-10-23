@@ -1,17 +1,16 @@
 "use server";
 import { redirect } from "next/navigation";
 import { createSession, destroySession, hashPassword, homeFor, verifyLogin } from "@/lib/auth";
-import { get, run, type Role } from "@/lib/db";
+import { get, run } from "@/lib/db";
 import { str } from "@/lib/util";
 
 export type FormState = { error?: string } | undefined;
 
 export async function login(_: FormState, f: FormData): Promise<FormState> {
-  const id = verifyLogin(str(f, "email"), String(f.get("password") ?? ""));
-  if (!id) return { error: "Invalid email or password." };
-  await createSession(id);
-  const u = get<{ role: Role }>("SELECT role FROM users WHERE id = ?", id)!;
-  redirect(homeFor(u.role));
+  const row = verifyLogin(str(f, "email").toLowerCase(), String(f.get("password") ?? ""));
+  if (!row) return { error: "Invalid email or password." };
+  await createSession(row.id, row.role);
+  redirect(homeFor(row.role));
 }
 
 export async function register(_: FormState, f: FormData): Promise<FormState> {
@@ -33,7 +32,7 @@ export async function register(_: FormState, f: FormData): Promise<FormState> {
     const fee = Number(get<{ value: string }>("SELECT value FROM settings WHERE key='referral_fee'")?.value ?? 0);
     run("INSERT INTO payments (teacher_id, student_id, amount, note) VALUES (?, ?, ?, 'Referral fee')", teacher.id, r.lastInsertRowid, fee);
   }
-  await createSession(Number(r.lastInsertRowid));
+  await createSession(Number(r.lastInsertRowid), "student");
   redirect("/student");
 }
 

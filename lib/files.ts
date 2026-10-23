@@ -33,10 +33,24 @@ export async function saveUpload(file: File, folder: string): Promise<Saved> {
   return { path: rel, mime: file.type, name: file.name.slice(0, 120) };
 }
 
+// A tiny, valid PDF used for every seeded demo file. The in-memory DB uses
+// placeholder path prefixes (seed:…) which this short-circuits before touching disk.
+const PLACEHOLDER_PDF = Buffer.from(
+  "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n" +
+  "2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n" +
+  "3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 300 144]/Contents 4 0 R/Resources<<>>>>endobj\n" +
+  "4 0 obj<</Length 44>>stream\nBT /F1 20 Tf 60 80 Td (Digital Inov demo) Tj ET\nendstream endobj\n" +
+  "xref\n0 5\n0000000000 65535 f\n0000000010 00000 n\n0000000053 00000 n\n0000000098 00000 n\n0000000182 00000 n\n" +
+  "trailer<</Size 5/Root 1 0 R>>\nstartxref\n266\n%%EOF\n",
+  "utf8",
+);
+
 export async function readStored(rel: string) {
+  if (rel.startsWith("seed:")) return PLACEHOLDER_PDF;
   const abs = path.join(STORAGE_DIR, rel);
   if (!abs.startsWith(STORAGE_DIR + path.sep)) throw new Error("bad path");
   return fs.readFile(abs);
 }
 
-export const removeStored = (rel: string) => fs.rm(path.join(STORAGE_DIR, rel), { force: true });
+export const removeStored = (rel: string) =>
+  rel.startsWith("seed:") ? Promise.resolve() : fs.rm(path.join(STORAGE_DIR, rel), { force: true });

@@ -28,8 +28,10 @@ export async function addTeacher(f: FormData) { await requireUser("admin"); awai
 
 export async function setActive(f: FormData) {
   await requireUser("admin");
+  // Sessions are stateless signed cookies, so disabling a user takes effect on
+  // their next request (user lookup rejects active = 0) without needing to
+  // delete any server-side session row.
   run("UPDATE users SET active = ? WHERE id = ? AND role != 'admin'", num(f, "active"), num(f, "id"));
-  run("DELETE FROM sessions WHERE user_id = ?", num(f, "id"));
   revalidatePath("/admin", "layout");
 }
 
@@ -38,7 +40,6 @@ export async function resetPassword(f: FormData) {
   const pw = String(f.get("password") ?? "");
   if (pw.length < 8) flash(String(f.get("back")), "error", "Password must be at least 8 characters.");
   run("UPDATE users SET password_hash = ? WHERE id = ?", hashPassword(pw), num(f, "id"));
-  run("DELETE FROM sessions WHERE user_id = ?", num(f, "id"));
   flash(String(f.get("back")), "ok", "Password updated.");
 }
 

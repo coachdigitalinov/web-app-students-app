@@ -1,4 +1,5 @@
-// Schema is embedded (not read from disk) so it is bundled into serverless functions.
+// Embedded SQL schema (bundled into serverless functions, no disk read).
+// `sessions` was removed — auth is stateless HMAC-signed cookies now.
 export const SCHEMA = `
 PRAGMA foreign_keys = ON;
 
@@ -16,12 +17,6 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
-CREATE TABLE IF NOT EXISTS sessions (
-  token_hash TEXT PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  expires_at TEXT NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -32,7 +27,7 @@ CREATE TABLE IF NOT EXISTS worksheets (
   title TEXT NOT NULL,
   subject TEXT NOT NULL,
   description TEXT,
-  grade TEXT,                       -- NULL = visible to every student
+  grade TEXT,
   file_path TEXT NOT NULL,
   mime TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))

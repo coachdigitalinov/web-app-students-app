@@ -4,40 +4,58 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { get, run, type Role, type User } from "./db";
 
+/**
+ * Stateless HMAC-signed cookies. No `sessions` table lookup, so logins survive
+ * Vercel's per-instance /tmp filesystem (where a SQLite sessions row cannot).
+ *
+ * Cookie format: `<userId>.<role>.<expiryUnix>.<base64url(hmac)>`
+ */
 const COOKIE = "session";
-const DAYS = 7;
-const hash = (t: string) => crypto.createHash("sha256").update(t).digest("hex");
+const TTL_DAYS = 7;
+const SECRET =
+  process.env.AUTH_SECRET ||
+  // Dev / preview fallback. For real production ALWAYS set AUTH_SECRET.
+  "digitalinov-demo-insecure-secret-set-AUTH_SECRET-in-prod";
 
-export async function createSession(userId: number) {
-  const token = crypto.randomBytes(32).toString("hex");
-  const expires = new Date(Date.now() + DAYS * 86400_000);
-  run("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)", hash(token), userId, expires.toISOString());
+const b64 = (b: Buffer) => b.toString("base64url");
+const sign = (payload: string) =>
+  b64(crypto.createHmac("sha256", SECRET).update(payload).digest());
+const timingSafeEq = (a: string, b: string) => {
+  const ab = Buffer.from(a), bb = Buffer.from(b);
+  return ab.length === bb.length && crypto.timingSafeEqual(ab, bb);
+};
+
+export async function createSession(userId: number, role: Role) {
+  const exp = Math.floor(Date.now() / 1000) + TTL_DAYS * 86400;
+  const payload = `${userId}.${role}.${exp}`;
+  const token = `${payload}.${sign(payload)}`;
   (await cookies()).set(COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    expires,
+    maxAge: TTL_DAYS * 86400,
   });
 }
 
 export async function destroySession() {
-  const jar = await cookies();
-  const token = jar.get(COOKIE)?.value;
-  if (token) run("DELETE FROM sessions WHERE token_hash = ?", hash(token));
-  jar.delete(COOKIE);
+  (await cookies()).delete(COOKIE);
 }
 
 export async function getUser(): Promise<User | null> {
   const token = (await cookies()).get(COOKIE)?.value;
   if (!token) return null;
+  const parts = token.split(".");
+  if (parts.length !== 4) return null;
+  const [uid, role, exp, sig] = parts;
+  const payload = `${uid}.${role}.${exp}`;
+  if (!timingSafeEq(sig, sign(payload))) return null;
+  if (Number(exp) * 1000 < Date.now()) return null;
   return (
     get<User>(
-      `SELECT u.id,u.name,u.email,u.role,u.school,u.grade,u.referral_code,u.referred_by,u.active,u.created_at
-       FROM sessions s JOIN users u ON u.id = s.user_id
-       WHERE s.token_hash = ? AND s.expires_at > ? AND u.active = 1`,
-      hash(token),
-      new Date().toISOString(),
+      `SELECT id, name, email, role, school, grade, referral_code, referred_by, active, created_at
+       FROM users WHERE id = ? AND active = 1`,
+      Number(uid),
     ) ?? null
   );
 }
@@ -52,13 +70,19 @@ export async function requireUser(...roles: Role[]): Promise<User> {
 }
 
 export const verifyLogin = (email: string, password: string) => {
-  const row = get<{ id: number; password_hash: string; active: number }>(
-    "SELECT id, password_hash, active FROM users WHERE email = ?",
+  const row = get<{ id: number; role: Role; password_hash: string; active: number }>(
+    "SELECT id, role, password_hash, active FROM users WHERE email = ?",
     email,
   );
-  // Compare against a dummy hash when the user is unknown to keep timing similar.
-  const ok = bcrypt.compareSync(password, row?.password_hash ?? "$2a$10$invalidinvalidinvalidinvalidinvalidinvalidinvalidinvali");
-  return row && ok && row.active ? row.id : null;
+  const ok = bcrypt.compareSync(
+    password,
+    // Constant-time dummy keeps timing uniform for unknown emails.
+    row?.password_hash ?? "$2a$10$invalidinvalidinvalidinvalidinvalidinvalidinvalidinvali",
+  );
+  return row && ok && row.active ? row : null;
 };
 
 export const hashPassword = (p: string) => bcrypt.hashSync(p, 10);
+
+// Call sites that still expect this (none should by design, but harmless).
+export const _runOnLogout = (uid: number) => run("SELECT 1 WHERE 1 = ? AND 1 = ?", 0, uid);
